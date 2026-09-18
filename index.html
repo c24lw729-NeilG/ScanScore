@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>成績單自動辨識與登記系統</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-sub: #64748b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Microsoft JhengHei", sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 24px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    
+    /* 步驟導覽列 */
+    .steps { display: flex; justify-content: space-around; margin-bottom: 24px; background: var(--card); padding: 16px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .step-item { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-sub); }
+    .step-item.active { color: var(--primary); }
+    .step-badge { width: 28px; height: 28px; border-radius: 50%; background: #e2e8f0; color: #475569; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .step-item.active .step-badge { background: var(--primary); color: #fff; }
+
+    /* 各階段區塊 */
+    .view-panel { display: none; background: var(--card); border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    .view-panel.active { display: block; }
+
+    /* 頁面 1: 上傳區 */
+    .drop-zone { border: 2px dashed #94a3b8; border-radius: 12px; padding: 48px 24px; text-align: center; cursor: pointer; transition: 0.2s; background: #fafafa; }
+    .drop-zone:hover { border-color: var(--primary); background: #eff6ff; }
+    .preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; margin-top: 20px; }
+    .preview-card { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+    .preview-card img { width: 100%; height: 140px; object-fit: cover; }
+
+    /* 頁面 2: 檢查分頁區 */
+    .tab-bar { display: flex; gap: 8px; border-bottom: 2px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
+    .tab-btn { padding: 10px 18px; border: none; background: none; font-weight: 600; cursor: pointer; color: var(--text-sub); border-bottom: 3px solid transparent; }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .check-container { display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; height: 650px; }
+    .image-viewer { overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: #334155; display: flex; align-items: center; justify-content: center; }
+    .image-viewer img { max-width: 100%; object-fit: contain; }
+    .editor-pane { display: flex; flex-direction: column; overflow: hidden; }
+    .meta-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .input-group label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .input-group input, .input-group select { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; }
+    .table-container { flex: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+    th, td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    th { background: #f8fafc; position: sticky; top: 0; z-index: 2; }
+    td input { width: 70px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; }
+
+    /* 頁面 3: 確認區 */
+    .summary-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .summary-header { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 8px; }
+
+    /* 按鈕樣式 */
+    .btn { padding: 10px 20px; background: var(--primary); color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    .btn:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #64748b; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-row { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
+    .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; justify-content: center; align-items: center; color: #fff; font-size: 18px; flex-direction: column; gap: 12px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- 流程標籤 -->
+  <div class="steps">
+    <div class="step-item active" id="badge-step1"><div class="step-badge">1</div> 1. 上傳多張成績單</div>
+    <div class="step-item" id="badge-step2"><div class="step-badge">2</div> 2. 分頁檢查與校對</div>
+    <div class="step-item" id="badge-step3"><div class="step-badge">3</div> 3. 確認並登記試算表</div>
+  </div>
+
+  <!-- 階段 1：上傳區 -->
+  <div class="view-panel active" id="view-step1">
+    <div class="drop-zone" onclick="document.getElementById('file-input').click()">
+      <h3>點擊或將多張成績登記表拖曳至此</h3>
+      <p style="color: var(--text-sub); margin-top: 8px;">支援 JPG、PNG 格式（可一次選擇多張圖片）</p>
+      <input type="file" id="file-input" multiple accept="image/*" style="display:none" onchange="handleFileSelect(event)">
+    </div>
+    <div class="preview-grid" id="preview-grid"></div>
+    <div class="btn-row">
+      <button class="btn" onclick="startBatchRecognition()">開始 AI 批次辨識 ➔</button>
+    </div>
+  </div>
+
+  <!-- 階段 2：檢查分頁區 -->
+  <div class="view-panel" id="view-step2">
+    <div class="tab-bar" id="tab-bar"></div>
+    <div class="check-container">
+      <div class="image-viewer">
+        <img id="current-sheet-img" src="" alt="原始成績單">
+      </div>
+      <div class="editor-pane">
+        <div class="meta-fields">
+          <div class="input-group">
+            <label>班級</label>
+            <select id="edit-class">
+              <option value="國二勤">國二勤</option>
+              <option value="國三孝">國三孝</option>
+              <option value="國三信">國三信</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>科目 (必填)</label>
+            <input type="text" id="edit-subject">
+          </div>
+          <div class="input-group">
+            <label>考試範圍</label>
+            <input type="text" id="edit-scope">
+          </div>
+          <div class="input-group">
+            <label>測驗日期</label>
+            <input type="text" id="edit-date">
+          </div>
+        </div>
+        <div class="table-container">
+          <table id="score-table">
+            <thead>
+              <tr><th>座號</th><th>學號</th><th>姓名</th><th>成績 (缺考/△留白)</th></tr>
+            </thead>
+            <tbody id="score-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="switchStep(1)">上一步</button>
+      <button class="btn" onclick="goToStep3()">完成檢查，前往確認區 ➔</button>
+    </div>
+  </div>
+
+  <!-- 階段 3：確認上傳區 -->
+  <div class="view-panel" id="view-step3">
+    <h3 style="margin-bottom: 16px;">即將寫入 Google 試算表的成績清單</h3>
+    <div id="summary-list"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="switchStep(2)">返回校對</button>
+      <button class="btn" onclick="submitToGoogleSheet()">確認並寫入 Google 試算表</button>
+    </div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loading-overlay">
+  <div id="loading-msg">正在辨識成績單影像，請稍候...</div>
+</div>
+
+<script>
+// GAS 部署網址（已直接寫入）
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec";
+
+// 學生名單底冊
+const ROSTERS = {
+  "國二勤": [
+    {no:1,id:"455232",name:"王子維"},{no:2,id:"455233",name:"王承皓"},{no:3,id:"455234",name:"李承駿"},
+    {no:4,id:"455235",name:"李柏燁"},{no:5,id:"455237",name:"林承樂"},{no:6,id:"455238",name:"林承叡"},
+    {no:7,id:"455239",name:"林昌慶"},{no:8,id:"455240",name:"侯恆晷"},{no:9,id:"455241",name:"柯震澤"},
+    {no:10,id:"455242",name:"留齊鴻"},{no:11,id:"455243",name:"莊浩廷"},{no:12,id:"455244",name:"陳奕丞"},
+    {no:13,id:"455245",name:"陳彥文"},{no:15,id:"455247",name:"陳靖期"},{no:16,id:"455248",name:"游子熠"},
+    {no:17,id:"455249",name:"游御辰"},{no:18,id:"455250",name:"詹宇誠"},{no:19,id:"455251",name:"潘品榕"},
+    {no:20,id:"455252",name:"衛易珅"},{no:21,id:"455253",name:"鄧淮朮"},{no:22,id:"455254",name:"鄭楚澔"},
+    {no:23,id:"455255",name:"鄭龍禧"},{no:24,id:"405191",name:"丁曉琦"},{no:25,id:"450192",name:"李羽芯"},
+    {no:26,id:"450193",name:"李洛薇"},{no:27,id:"450194",name:"李晨瑄"},{no:28,id:"450195",name:"周靖婷"},
+    {no:29,id:"450196",name:"林彤恩"},{no:30,id:"450197",name:"林芝茵"},{no:31,id:"450198",name:"林郁廷"},
+    {no:32,id:"450199",name:"張均伊"},{no:33,id:"450200",name:"陳品妤"},{no:34,id:"450201",name:"游舒帆"},
+    {no:35,id:"450202",name:"黃琪媛"},{no:36,id:"450203",name:"楊以慈"},{no:37,id:"450204",name:"楊庭懿"},
+    {no:38,id:"450205",name:"楊絜安"},{no:39,id:"450206",name:"詹子潔"},{no:40,id:"450207",name:"詹子緹"},
+    {no:41,id:"450208",name:"劉育辰"},{no:42,id:"450209",name:"蘇湘婷"},{no:43,id:"455256",name:"張儀弘"}
+  ],
+  "國三孝": [
+    {no:1,id:"355181",name:"方麒皓"},{no:2,id:"355205",name:"向廣誠"},{no:3,id:"355246",name:"何子昂"},
+    {no:4,id:"355183",name:"吳明洧"},{no:5,id:"355270",name:"呂彥炘"},{no:6,id:"355250",name:"李文瑜"},
+    {no:7,id:"355252",name:"李宥叡"},{no:8,id:"355143",name:"林承駿"},{no:9,id:"355069",name:"林恩廷"},
+    {no:10,id:"355187",name:"翁睿宏"},{no:11,id:"355218",name:"張昱緯"},{no:12,id:"355123",name:"張鈞淳"},
+    {no:13,id:"355126",name:"陳昱安"},{no:14,id:"355242",name:"曾宇謙"},{no:15,id:"355036",name:"游昀軒"},
+    {no:16,id:"355080",name:"黃軍翔"},{no:17,id:"355174",name:"楊沂濬"},{no:18,id:"355085",name:"鄔千富"},
+    {no:19,id:"355086",name:"鄭旭宸"},{no:20,id:"355202",name:"盧毅愷"},{no:21,id:"355177",name:"蕭胤丞"},
+    {no:22,id:"355224",name:"闕登元"},{no:23,id:"350136",name:"王盈喬"},{no:24,id:"350118",name:"王語樂"},
+    {no:25,id:"350065",name:"江俞蓁"},{no:26,id:"350034",name:"呂宜潔"},{no:27,id:"350085",name:"呂庭綸"},
+    {no:28,id:"350035",name:"李妍蓁"},{no:29,id:"350052",name:"林宜臻"},{no:30,id:"350155",name:"洪萱煒"},
+    {no:31,id:"350179",name:"張明希"},{no:32,id:"350181",name:"莊以喬"},{no:33,id:"350164",name:"曾羽婕"},
+    {no:34,id:"350146",name:"曾婧雅"},{no:35,id:"350168",name:"盧沛妤"},{no:36,id:"350115",name:"謝妤晨"},
+    {no:37,id:"350169",name:"謝雨彤"},{no:38,id:"350170",name:"簡予馨"},{no:39,id:"350116",name:"羅品雯"},
+    {no:40,id:"350152",name:"鐘苡琦"}
+  ],
+  "國三信": [
+    {no:1,id:"355228",name:"王翊安"},{no:2,id:"355249",name:"吳昇祐"},{no:3,id:"355159",name:"宋昊展"},
+    {no:4,id:"355232",name:"李源沁"},{no:5,id:"355208",name:"周可承"},{no:6,id:"355071",name:"林鈺翰"},
+    {no:7,id:"355211",name:"邱聰亦"},{no:8,id:"355257",name:"范宸維"},{no:9,id:"355186",name:"孫安騰"},
+    {no:10,id:"355215",name:"徐震恩"},{no:11,id:"355053",name:"康祐睿"},{no:12,id:"355188",name:"張哲輔"},
+    {no:13,id:"355189",name:"張淙凱"},{no:14,id:"355165",name:"張浹鈞"},{no:15,id:"355191",name:"梁竣硯"},
+    {no:16,id:"355074",name:"郭宇評"},{no:17,id:"355149",name:"陳冠維"},{no:18,id:"355238",name:"陳冠銘"},
+    {no:19,id:"355128",name:"陳柏丞"},{no:20,id:"355105",name:"彭翊庭"},{no:21,id:"355199",name:"楊福斌"},
+    {no:22,id:"355153",name:"潘柏佑"},{no:23,id:"350173",name:"吳詠晴"},{no:24,id:"350174",name:"呂芷妍"},
+    {no:25,id:"350102",name:"李欣恩"},{no:26,id:"350050",name:"沈子淇"},{no:27,id:"350156",name:"范馨文"},
+    {no:28,id:"350158",name:"孫上晴"},{no:29,id:"350106",name:"梁紫晴"},{no:30,id:"350143",name:"陳品卉"},
+    {no:31,id:"350200",name:"陳韋茹"},{no:32,id:"350076",name:"曾鈺珣"},{no:33,id:"350078",name:"黃歆紜"},
+    {no:34,id:"350165",name:"黃縱縈"},{no:35,id:"350202",name:"黃禎誼"},{no:36,id:"350204",name:"鄭宇庭"},
+    {no:37,id:"350208",name:"蕭子瑀"},{no:38,id:"350187",name:"羅品淳"},{no:39,id:"350047",name:"羅儀庭"},
+    {no:40,id:"350214",name:"盧佾瑄"}
+  ]
+};
+
+let uploadedFiles = [];
+let processedSheets = [];
+let activeTabIndex = 0;
+
+function switchStep(step) {
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.step-item').forEach(b => b.classList.remove('active'));
+  document.getElementById(`view-step${step}`).classList.add('active');
+  document.getElementById(`badge-step${step}`).classList.add('active');
+}
+
+function handleFileSelect(e) {
+  const files = Array.from(e.target.files);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      uploadedFiles.push({ file, dataUrl: evt.target.result });
+      renderUploadPreviews();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderUploadPreviews() {
+  const container = document.getElementById('preview-grid');
+  container.innerHTML = uploadedFiles.map((item) => `
+    <div class="preview-card">
+      <img src="${item.dataUrl}">
+    </div>
+  `).join('');
+}
+
+async function startBatchRecognition() {
+  if (uploadedFiles.length === 0) return alert("請先選擇至少一張成績單圖片");
+
+  const overlay = document.getElementById('loading-overlay');
+  const msg = document.getElementById('loading-msg');
+  overlay.style.display = 'flex';
+  processedSheets = [];
+
+  for (let i = 0; i < uploadedFiles.length; i++) {
+    msg.innerText = `正在辨識第 ${i + 1} / ${uploadedFiles.length} 張成績單...`;
+    const item = uploadedFiles[i];
+    const base64Data = item.dataUrl.split(',')[1];
+    const mimeType = item.file.type;
+
+    try {
+      const resp = await fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "analyze", imageBase64: base64Data, mimeType })
+      });
+      const resJson = await resp.json();
+      if (resJson.success) {
+        const data = resJson.data;
+        processedSheets.push({
+          dataUrl: item.dataUrl,
+          class_name: data.class_name || "國二勤",
+          subject: data.subject || "數學",
+          scope: data.scope || "",
+          exam_date: data.exam_date || "",
+          scores: data.scores || []
+        });
+      } else {
+        alert(`第 ${i + 1} 張辨識發生錯誤: ` + resJson.error);
+      }
+    } catch (err) {
+      alert(`第 ${i + 1} 張請求失敗: ` + err.message);
+    }
+  }
+
+  overlay.style.display = 'none';
+  if (processedSheets.length > 0) {
+    initTabs();
+    switchStep(2);
+  }
+}
+
+function initTabs() {
+  const tabBar = document.getElementById('tab-bar');
+  tabBar.innerHTML = processedSheets.map((s, idx) => `
+    <button class="tab-btn ${idx === 0 ? 'active' : ''}" onclick="switchTab(${idx})">
+      [${idx + 1}] ${s.class_name} - ${s.subject}
+    </button>
+  `).join('');
+  renderTabContent(0);
+}
+
+function switchTab(index) {
+  saveCurrentTabInputs();
+  activeTabIndex = index;
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === index));
+  renderTabContent(index);
+}
+
+function saveCurrentTabInputs() {
+  if (!processedSheets[activeTabIndex]) return;
+  const current = processedSheets[activeTabIndex];
+  current.class_name = document.getElementById('edit-class').value;
+  current.subject = document.getElementById('edit-subject').value;
+  current.scope = document.getElementById('edit-scope').value;
+  current.exam_date = document.getElementById('edit-date').value;
+
+  const scoreInputs = document.querySelectorAll('#score-tbody input');
+  const scores = [];
+  scoreInputs.forEach(input => {
+    scores.push({
+      seat_no: parseInt(input.dataset.no, 10),
+      score: input.value.trim()
+    });
+  });
+  current.scores = scores;
+}
+
+function renderTabContent(index) {
+  const data = processedSheets[index];
+  document.getElementById('current-sheet-img').src = data.dataUrl;
+  document.getElementById('edit-class').value = data.class_name;
+  document.getElementById('edit-subject').value = data.subject;
+  document.getElementById('edit-scope').value = data.scope;
+  document.getElementById('edit-date').value = data.exam_date;
+
+  document.getElementById('edit-class').onchange = (e) => {
+    data.class_name = e.target.value;
+    renderStudentTable(data);
+  };
+
+  renderStudentTable(data);
+}
+
+function renderStudentTable(data) {
+  const roster = ROSTERS[data.class_name] || [];
+  const scoreMap = {};
+  (data.scores || []).forEach(s => { scoreMap[s.seat_no] = s.score; });
+
+  const tbody = document.getElementById('score-tbody');
+  tbody.innerHTML = roster.map(student => {
+    const scoreVal = scoreMap[student.no] !== undefined ? scoreMap[student.no] : "";
+    return `
+      <tr>
+        <td>${student.no}</td>
+        <td>${student.id}</td>
+        <td>${student.name}</td>
+        <td>
+          <input type="text" data-no="${student.no}" value="${scoreVal}">
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function goToStep3() {
+  saveCurrentTabInputs();
+  const summaryContainer = document.getElementById('summary-list');
+  summaryContainer.innerHTML = processedSheets.map((item, idx) => {
+    const validCount = item.scores.filter(s => s.score !== "").length;
+    return `
+      <div class="summary-card">
+        <div class="summary-header">
+          <span>[${idx + 1}] ${item.class_name} - ${item.subject}</span>
+          <span style="color: var(--primary);">登記人數: ${validCount} 人</span>
+        </div>
+        <p style="color: var(--text-sub); font-size: 14px;">
+          範圍: ${item.scope || '無'} ｜ 日期: ${item.exam_date || '依上傳時間'}
+        </p>
+      </div>
+    `;
+  }).join('');
+  switchStep(3);
+}
+
+async function submitToGoogleSheet() {
+  const overlay = document.getElementById('loading-overlay');
+  const msg = document.getElementById('loading-msg');
+  msg.innerText = "正在寫入 Google 試算表，請稍候...";
+  overlay.style.display = 'flex';
+
+  try {
+    const resp = await fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "save", records: processedSheets })
+    });
+    const res = await resp.json();
+    overlay.style.display = 'none';
+
+    if (res.success) {
+      alert("🎉 成績已全數成功登記至 Google 試算表！");
+      location.reload();
+    } else {
+      alert("登記失敗: " + res.error);
+    }
+  } catch (err) {
+    overlay.style.display = 'none';
+    alert("請求發生異常: " + err.message);
+  }
+}
+</script>
+</body>
+</html>
