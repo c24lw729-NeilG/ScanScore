@@ -254,6 +254,8 @@ async function startBatchRecognition() {
     try {
       const resp = await fetch(GAS_URL, {
         method: "POST",
+        // 改用 text/plain 避免觸發瀏覽器 CORS Preflight 預檢阻擋
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({ action: "analyze", imageBase64: base64Data, mimeType })
       });
       const resJson = await resp.json();
