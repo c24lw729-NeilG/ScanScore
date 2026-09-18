@@ -17,25 +17,21 @@
     body { background-color: var(--bg); color: var(--text); padding: 24px; }
     .container { max-width: 1200px; margin: 0 auto; }
     
-    /* 步驟導覽列 */
     .steps { display: flex; justify-content: space-around; margin-bottom: 24px; background: var(--card); padding: 16px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .step-item { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-sub); }
     .step-item.active { color: var(--primary); }
     .step-badge { width: 28px; height: 28px; border-radius: 50%; background: #e2e8f0; color: #475569; display: flex; align-items: center; justify-content: center; font-size: 14px; }
     .step-item.active .step-badge { background: var(--primary); color: #fff; }
 
-    /* 各階段區塊 */
     .view-panel { display: none; background: var(--card); border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
     .view-panel.active { display: block; }
 
-    /* 頁面 1: 上傳區 */
     .drop-zone { border: 2px dashed #94a3b8; border-radius: 12px; padding: 48px 24px; text-align: center; cursor: pointer; transition: 0.2s; background: #fafafa; }
     .drop-zone:hover { border-color: var(--primary); background: #eff6ff; }
     .preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; margin-top: 20px; }
     .preview-card { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
     .preview-card img { width: 100%; height: 140px; object-fit: cover; }
 
-    /* 頁面 2: 檢查分頁區 */
     .tab-bar { display: flex; gap: 8px; border-bottom: 2px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
     .tab-btn { padding: 10px 18px; border: none; background: none; font-weight: 600; cursor: pointer; color: var(--text-sub); border-bottom: 3px solid transparent; }
     .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
@@ -52,11 +48,9 @@
     th { background: #f8fafc; position: sticky; top: 0; z-index: 2; }
     td input { width: 70px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; }
 
-    /* 頁面 3: 確認區 */
     .summary-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
     .summary-header { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 8px; }
 
-    /* 按鈕樣式 */
     .btn { padding: 10px 20px; background: var(--primary); color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
     .btn:hover { background: var(--primary-hover); }
     .btn-secondary { background: #64748b; }
@@ -68,18 +62,16 @@
 <body>
 
 <div class="container">
-  <!-- 流程標籤 -->
   <div class="steps">
     <div class="step-item active" id="badge-step1"><div class="step-badge">1</div> 1. 上傳多張成績單</div>
     <div class="step-item" id="badge-step2"><div class="step-badge">2</div> 2. 分頁檢查與校對</div>
     <div class="step-item" id="badge-step3"><div class="step-badge">3</div> 3. 確認並登記試算表</div>
   </div>
 
-  <!-- 階段 1：上傳區 -->
   <div class="view-panel active" id="view-step1">
     <div class="drop-zone" onclick="document.getElementById('file-input').click()">
       <h3>點擊或將多張成績登記表拖曳至此</h3>
-      <p style="color: var(--text-sub); margin-top: 8px;">支援 JPG、PNG 格式（可一次選擇多張圖片）</p>
+      <p style="color: var(--text-sub); margin-top: 8px;">支援 JPG、PNG 格式（系統已自動開啟高解析度輕量化壓縮）</p>
       <input type="file" id="file-input" multiple accept="image/*" style="display:none" onchange="handleFileSelect(event)">
     </div>
     <div class="preview-grid" id="preview-grid"></div>
@@ -88,7 +80,6 @@
     </div>
   </div>
 
-  <!-- 階段 2：檢查分頁區 -->
   <div class="view-panel" id="view-step2">
     <div class="tab-bar" id="tab-bar"></div>
     <div class="check-container">
@@ -134,7 +125,6 @@
     </div>
   </div>
 
-  <!-- 階段 3：確認上傳區 -->
   <div class="view-panel" id="view-step3">
     <h3 style="margin-bottom: 16px;">即將寫入 Google 試算表的成績清單</h3>
     <div id="summary-list"></div>
@@ -150,10 +140,8 @@
 </div>
 
 <script>
-// GAS 部署網址（已直接寫入）
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec";
+const GAS_URL = "[https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec](https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec)";
 
-// 學生名單底冊
 const ROSTERS = {
   "國二勤": [
     {no:1,id:"455232",name:"王子維"},{no:2,id:"455233",name:"王承皓"},{no:3,id:"455234",name:"李承駿"},
@@ -216,16 +204,47 @@ function switchStep(step) {
   document.getElementById(`badge-step${step}`).classList.add('active');
 }
 
-function handleFileSelect(e) {
-  const files = Array.from(e.target.files);
-  files.forEach(file => {
+// 圖片自動壓縮函式（防止手機照片過大造成 GAS 請求逾時或拒絕）
+function compressImage(file) {
+  return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onload = (evt) => {
-      uploadedFiles.push({ file, dataUrl: evt.target.result });
-      renderUploadPreviews();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1600;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        // 一律轉為高相容性 JPEG 壓縮
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        resolve({ dataUrl: compressedDataUrl, mimeType: 'image/jpeg' });
+      };
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   });
+}
+
+async function handleFileSelect(e) {
+  const files = Array.from(e.target.files);
+  for (const file of files) {
+    const compressed = await compressImage(file);
+    uploadedFiles.push(compressed);
+  }
+  renderUploadPreviews();
 }
 
 function renderUploadPreviews() {
@@ -249,14 +268,12 @@ async function startBatchRecognition() {
     msg.innerText = `正在辨識第 ${i + 1} / ${uploadedFiles.length} 張成績單...`;
     const item = uploadedFiles[i];
     const base64Data = item.dataUrl.split(',')[1];
-    const mimeType = item.file.type;
 
     try {
       const resp = await fetch(GAS_URL, {
         method: "POST",
-        // 改用 text/plain 避免觸發瀏覽器 CORS Preflight 預檢阻擋
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action: "analyze", imageBase64: base64Data, mimeType })
+        body: JSON.stringify({ action: "analyze", imageBase64: base64Data, mimeType: item.mimeType })
       });
       const resJson = await resp.json();
       if (resJson.success) {
@@ -386,6 +403,7 @@ async function submitToGoogleSheet() {
   try {
     const resp = await fetch(GAS_URL, {
       method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ action: "save", records: processedSheets })
     });
     const res = await resp.json();
