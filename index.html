@@ -33,7 +33,6 @@
     .drop-zone:hover { border-color: var(--primary); background: #eff6ff; }
     .preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; margin-top: 16px; }
     
-    /* 預覽卡片與刪除按鈕 */
     .preview-card { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); background: #f1f5f9; }
     .preview-card img { width: 100%; height: 130px; object-fit: cover; display: block; }
     .delete-btn { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; background: rgba(239, 68, 68, 0.9); color: #fff; border: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: 0.2s; }
@@ -73,7 +72,8 @@
     .btn-outline { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
     .btn-outline:hover { background: #eff6ff; }
     .btn-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
-    .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999; justify-content: center; align-items: center; color: #fff; font-size: 16px; flex-direction: column; gap: 14px; text-align: center; padding: 20px; }
+    .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 999; justify-content: center; align-items: center; color: #fff; font-size: 16px; flex-direction: column; gap: 14px; text-align: center; padding: 20px; }
+    .sub-msg { font-size: 13px; color: #94a3b8; margin-top: -6px; }
   </style>
 </head>
 <body>
@@ -85,15 +85,13 @@
     <div class="step-item" id="badge-step3"><div class="step-badge">3</div> 登記試算表</div>
   </div>
 
-  <!-- 階段 1：上傳區 -->
   <div class="view-panel active" id="view-step1">
     <div class="drop-zone" onclick="document.getElementById('file-input').click()">
       <h3>點擊此處選取或拍攝成績單</h3>
-      <p style="color: var(--text-sub); margin-top: 8px; font-size: 13px;">可多批選取或加拍，若選錯可直接點擊照片右上角的「✕」刪除</p>
+      <p style="color: var(--text-sub); margin-top: 8px; font-size: 13px;">可多批選取，若選錯可直接點擊照片右上角的「✕」刪除</p>
       <input type="file" id="file-input" multiple accept="image/jpeg,image/png,image/jpg" style="display:none" onchange="handleFileSelect(event)">
     </div>
 
-    <!-- 預覽區域 -->
     <div class="preview-grid" id="preview-grid"></div>
 
     <div class="btn-row" style="justify-content: space-between; align-items: center;">
@@ -108,7 +106,6 @@
     </div>
   </div>
 
-  <!-- 階段 2：檢查分頁區 -->
   <div class="view-panel" id="view-step2">
     <div class="tab-bar" id="tab-bar"></div>
     <div class="check-container">
@@ -154,7 +151,6 @@
     </div>
   </div>
 
-  <!-- 階段 3：確認上傳區 -->
   <div class="view-panel" id="view-step3">
     <h3 style="margin-bottom: 16px;">即將寫入 Google 試算表的成績清單</h3>
     <div id="summary-list"></div>
@@ -167,12 +163,12 @@
 
 <div class="loading-overlay" id="loading-overlay">
   <div id="loading-msg">正在辨識成績單影像，請稍候...</div>
+  <div class="sub-msg" id="loading-sub">系統正在安全調節請求頻率以保護配額...</div>
 </div>
 
 <script>
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec";
+const GAS_URL = "[https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec](https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec)";
 
-// 學生名單底冊
 const ROSTERS = {
   "國二勤": [
     {no:1,id:"455232",name:"王子維"},{no:2,id:"455233",name:"王承皓"},{no:3,id:"455234",name:"李承駿"},
@@ -235,7 +231,6 @@ function switchStep(step) {
   document.getElementById(`badge-step${step}`).classList.add('active');
 }
 
-// 圖片壓縮函式
 function processImageForIOS(file) {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -276,7 +271,6 @@ function processImageForIOS(file) {
   });
 }
 
-// 處理選取檔案（支援累加模式）
 async function handleFileSelect(e) {
   const files = Array.from(e.target.files);
   if (!files.length) return;
@@ -286,18 +280,15 @@ async function handleFileSelect(e) {
     uploadedFiles.push(processed);
   }
   
-  // 清空 input 讓重複選相同檔名也可以觸發
   e.target.value = "";
   renderUploadPreviews();
 }
 
-// 刪除單張已選照片
 function removeImage(index) {
   uploadedFiles.splice(index, 1);
   renderUploadPreviews();
 }
 
-// 渲染預覽圖
 function renderUploadPreviews() {
   const container = document.getElementById('preview-grid');
   const addMoreBtn = document.getElementById('add-more-btn');
@@ -338,13 +329,15 @@ async function startBatchRecognition() {
 
   const overlay = document.getElementById('loading-overlay');
   const msg = document.getElementById('loading-msg');
+  const subMsg = document.getElementById('loading-sub');
   overlay.style.display = 'flex';
   processedSheets = [];
 
   for (let i = 0; i < uploadedFiles.length; i++) {
-    msg.innerText = `正在辨識第 ${i + 1} / ${uploadedFiles.length} 張成績單，請稍候...`;
-    const item = uploadedFiles[i];
+    msg.innerText = `正在辨識第 ${i + 1} / ${uploadedFiles.length} 張成績單...`;
+    subMsg.innerText = `AI 正在解析班級、科目與成績...`;
     
+    const item = uploadedFiles[i];
     const base64Data = item.dataUrl.indexOf(',') > -1 
       ? item.dataUrl.split(',')[1] 
       : item.dataUrl;
@@ -368,18 +361,20 @@ async function startBatchRecognition() {
           scores: data.scores || []
         });
       } else {
-        alert(`第 ${i + 1} 張辨識失敗: ` + resJson.error);
+        alert(`第 ${i + 1} 張辨識遇到問題: ` + resJson.error);
       }
     } catch (err) {
       if (err.name === 'AbortError') {
-        alert(`第 ${i + 1} 張請求逾時，請檢查網路連線`);
+        alert(`第 ${i + 1} 張請求逾時，請檢查網路`);
       } else {
         alert(`第 ${i + 1} 張請求失敗: ` + err.message);
       }
     }
 
+    // 關鍵節流保護：每張照片完成後，預留 2.5 秒緩衝冷卻，防止打穿免費額度水桶
     if (i < uploadedFiles.length - 1) {
-      await sleep(1000);
+      subMsg.innerText = `冷卻保護中，即將辨識下一張 (2.5 秒)...`;
+      await sleep(2500);
     }
   }
 
@@ -486,7 +481,9 @@ function goToStep3() {
 async function submitToGoogleSheet() {
   const overlay = document.getElementById('loading-overlay');
   const msg = document.getElementById('loading-msg');
+  const subMsg = document.getElementById('loading-sub');
   msg.innerText = "正在寫入 Google 試算表，請稍候...";
+  subMsg.innerText = "正在對齊班級與座號...";
   overlay.style.display = 'flex';
 
   try {
@@ -510,7 +507,6 @@ async function submitToGoogleSheet() {
   }
 }
 
-// 預熱連線
 window.addEventListener('DOMContentLoaded', () => {
   fetch(GAS_URL, {
     method: "POST",
