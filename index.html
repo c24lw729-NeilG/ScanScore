@@ -73,7 +73,7 @@
     .btn-outline:hover { background: #eff6ff; }
     .btn-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
     .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 999; justify-content: center; align-items: center; color: #fff; font-size: 16px; flex-direction: column; gap: 14px; text-align: center; padding: 20px; }
-    .sub-msg { font-size: 13px; color: #fde047; margin-top: -4px; max-width: 400px; line-height: 1.5; }
+    .sub-msg { font-size: 13px; color: #fde047; margin-top: -4px; max-width: 440px; line-height: 1.6; }
   </style>
 </head>
 <body>
@@ -85,6 +85,7 @@
     <div class="step-item" id="badge-step3"><div class="step-badge">3</div> 登記試算表</div>
   </div>
 
+  <!-- 階段 1：上傳區 -->
   <div class="view-panel active" id="view-step1">
     <div class="drop-zone" onclick="document.getElementById('file-input').click()">
       <h3>點擊此處拍照或從相簿選取成績單</h3>
@@ -108,6 +109,7 @@
     </div>
   </div>
 
+  <!-- 階段 2：檢查分頁區 -->
   <div class="view-panel" id="view-step2">
     <div class="tab-bar" id="tab-bar"></div>
     <div class="check-container">
@@ -153,6 +155,7 @@
     </div>
   </div>
 
+  <!-- 階段 3：確認上傳區 -->
   <div class="view-panel" id="view-step3">
     <h3 style="margin-bottom: 16px;">即將寫入 Google 試算表的成績清單</h3>
     <div id="summary-list"></div>
@@ -319,7 +322,7 @@ function renderUploadPreviews() {
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
 // =========================================================================
-// 核心：直連 Gemini API，並內建「429 自動讀取秒數接續重試」機制
+// 核心：直連 Gemini API，並內建「依 Google 要求秒數 + 2 秒自動接續」機制
 // =========================================================================
 async function callGeminiWithAutoWait(base64Data, updateStatusCallback) {
   const prompt = `你是一個嚴謹的國中成績登記表影像辨識助理。
@@ -359,7 +362,7 @@ async function callGeminiWithAutoWait(base64Data, updateStatusCallback) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
   
   let attempts = 0;
-  while (attempts < 4) {
+  while (attempts < 5) {
     attempts++;
     const resp = await fetch(url, {
       method: "POST",
@@ -379,18 +382,24 @@ async function callGeminiWithAutoWait(base64Data, updateStatusCallback) {
 
     const errText = await resp.text();
 
-    // 關鍵攔截：若是 429 配額超限，自動讀取需要等幾秒！
+    // 關鍵攔截：若是 429 配額超限，自動讀取需要幾秒，並自動 + 2 秒緩衝
     if (resp.status === 429) {
-      let waitSeconds = 35; // 預設等待
-      // 從 Google 錯誤文字解析秒數 (例如 Please retry in 39.83s)
+      let waitSeconds = 35; 
+      let requestedSecondsText = "35";
+
+      // 解析 Google 錯誤訊息 (例如: Please retry in 39.830668256s)
       const match = errText.match(/retry in ([\d\.]+)s/i);
       if (match && match[1]) {
-        waitSeconds = Math.ceil(parseFloat(match[1])) + 2; // 多加 2 秒緩衝
+        requestedSecondsText = match[1];
+        // 向上取整後，精確加上 2 秒緩衝
+        waitSeconds = Math.ceil(parseFloat(requestedSecondsText)) + 2;
+      } else {
+        waitSeconds = 35 + 2;
       }
 
-      // 開始即時倒數
+      // 開始即時倒數提示
       for (let s = waitSeconds; s > 0; s--) {
-        updateStatusCallback(`觸發免費層冷卻，系統將在 ${s} 秒後自動為您重試...`);
+        updateStatusCallback(`觸發配額冷卻（要求 ${parseFloat(requestedSecondsText).toFixed(1)} 秒 + 緩衝 2 秒），系統將在 ${s} 秒後自動為您重試...`);
         await sleep(1000);
       }
       updateStatusCallback("正在重新發送辨識...");
@@ -400,7 +409,7 @@ async function callGeminiWithAutoWait(base64Data, updateStatusCallback) {
     throw new Error(`API 錯誤 (${resp.status}): ${errText}`);
   }
 
-  throw new Error("多次重試後仍超出限制，建議稍候再試。");
+  throw new Error("重試多次後仍超出限制，建議稍候再試。");
 }
 
 async function startDirectAiRecognition() {
@@ -425,7 +434,6 @@ async function startDirectAiRecognition() {
       : item.dataUrl;
 
     try {
-      // 呼叫具備自動接續重試的函式
       const data = await callGeminiWithAutoWait(base64Data, (statusText) => {
         subMsg.innerText = statusText;
       });
