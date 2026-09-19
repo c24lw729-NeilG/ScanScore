@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>成績單自動辨識與登記系統</title>
   <style>
     :root {
@@ -14,65 +15,73 @@
       --text-sub: #64748b;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Microsoft JhengHei", sans-serif; }
-    body { background-color: var(--bg); color: var(--text); padding: 24px; }
+    body { background-color: var(--bg); color: var(--text); padding: 16px; }
     .container { max-width: 1200px; margin: 0 auto; }
     
-    .steps { display: flex; justify-content: space-around; margin-bottom: 24px; background: var(--card); padding: 16px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .step-item { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-sub); }
+    .steps { display: flex; justify-content: space-around; margin-bottom: 20px; background: var(--card); padding: 14px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .step-item { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; color: var(--text-sub); }
     .step-item.active { color: var(--primary); }
-    .step-badge { width: 28px; height: 28px; border-radius: 50%; background: #e2e8f0; color: #475569; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .step-badge { width: 24px; height: 24px; border-radius: 50%; background: #e2e8f0; color: #475569; display: flex; align-items: center; justify-content: center; font-size: 12px; }
     .step-item.active .step-badge { background: var(--primary); color: #fff; }
 
-    .view-panel { display: none; background: var(--card); border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    .view-panel { display: none; background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
     .view-panel.active { display: block; }
 
-    .drop-zone { border: 2px dashed #94a3b8; border-radius: 12px; padding: 48px 24px; text-align: center; cursor: pointer; transition: 0.2s; background: #fafafa; }
+    .drop-zone { border: 2px dashed #94a3b8; border-radius: 12px; padding: 36px 16px; text-align: center; cursor: pointer; transition: 0.2s; background: #fafafa; }
     .drop-zone:hover { border-color: var(--primary); background: #eff6ff; }
-    .preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; margin-top: 20px; }
+    .preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; margin-top: 16px; }
     .preview-card { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
-    .preview-card img { width: 100%; height: 140px; object-fit: cover; }
+    .preview-card img { width: 100%; height: 110px; object-fit: cover; }
 
-    .tab-bar { display: flex; gap: 8px; border-bottom: 2px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
-    .tab-btn { padding: 10px 18px; border: none; background: none; font-weight: 600; cursor: pointer; color: var(--text-sub); border-bottom: 3px solid transparent; }
+    .tab-bar { display: flex; gap: 8px; border-bottom: 2px solid var(--border); margin-bottom: 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tab-btn { padding: 8px 14px; border: none; background: none; font-weight: 600; cursor: pointer; color: var(--text-sub); border-bottom: 3px solid transparent; white-space: nowrap; }
     .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
-    .check-container { display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; height: 650px; }
-    .image-viewer { overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: #334155; display: flex; align-items: center; justify-content: center; }
+    
+    .check-container { display: grid; grid-template-columns: 1fr; gap: 20px; }
+    @media (min-width: 768px) {
+      .check-container { grid-template-columns: 1fr 1.2fr; height: 650px; }
+    }
+    .image-viewer { overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: #334155; display: flex; align-items: center; justify-content: center; min-height: 250px; }
     .image-viewer img { max-width: 100%; object-fit: contain; }
     .editor-pane { display: flex; flex-direction: column; overflow: hidden; }
-    .meta-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-    .input-group label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-    .input-group input, .input-group select { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; }
-    .table-container { flex: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+    .meta-fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+    @media (min-width: 768px) {
+      .meta-fields { grid-template-columns: repeat(4, 1fr); }
+    }
+    .input-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .input-group input, .input-group select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+    .table-container { flex: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; max-height: 400px; }
     table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
-    th, td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
     th { background: #f8fafc; position: sticky; top: 0; z-index: 2; }
-    td input { width: 70px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; }
+    td input { width: 64px; padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-size: 15px; }
 
-    .summary-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    .summary-header { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 8px; }
+    .summary-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+    .summary-header { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 6px; }
 
-    .btn { padding: 10px 20px; background: var(--primary); color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    .btn { padding: 10px 18px; background: var(--primary); color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 14px; }
     .btn:hover { background: var(--primary-hover); }
     .btn-secondary { background: #64748b; }
     .btn-secondary:hover { background: #475569; }
-    .btn-row { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
-    .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999; justify-content: center; align-items: center; color: #fff; font-size: 18px; flex-direction: column; gap: 14px; }
+    .btn-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+    .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999; justify-content: center; align-items: center; color: #fff; font-size: 16px; flex-direction: column; gap: 14px; text-align: center; padding: 20px; }
   </style>
 </head>
 <body>
 
 <div class="container">
   <div class="steps">
-    <div class="step-item active" id="badge-step1"><div class="step-badge">1</div> 1. 上傳多張成績單</div>
-    <div class="step-item" id="badge-step2"><div class="step-badge">2</div> 2. 分頁檢查與校對</div>
-    <div class="step-item" id="badge-step3"><div class="step-badge">3</div> 3. 確認並登記試算表</div>
+    <div class="step-item active" id="badge-step1"><div class="step-badge">1</div> 上傳</div>
+    <div class="step-item" id="badge-step2"><div class="step-badge">2</div> 校對分頁</div>
+    <div class="step-item" id="badge-step3"><div class="step-badge">3</div> 登記試算表</div>
   </div>
 
   <div class="view-panel active" id="view-step1">
     <div class="drop-zone" onclick="document.getElementById('file-input').click()">
-      <h3>點擊或將多張成績登記表拖曳至此</h3>
-      <p style="color: var(--text-sub); margin-top: 8px;">支援 JPG、PNG 格式（系統已自動開啟高解析度快速壓縮）</p>
-      <input type="file" id="file-input" multiple accept="image/*" style="display:none" onchange="handleFileSelect(event)">
+      <h3>點擊此處選取或拍攝成績單</h3>
+      <p style="color: var(--text-sub); margin-top: 8px; font-size: 13px;">支援多圖選擇（相機拍照或照片圖庫皆可）</p>
+      <!-- 修正 accept 格式，避開 iOS Safari 的模式匹配 Bug -->
+      <input type="file" id="file-input" multiple accept="image/jpeg,image/png,image/jpg" style="display:none" onchange="handleFileSelect(event)">
     </div>
     <div class="preview-grid" id="preview-grid"></div>
     <div class="btn-row">
@@ -112,7 +121,7 @@
         <div class="table-container">
           <table id="score-table">
             <thead>
-              <tr><th>座號</th><th>學號</th><th>姓名</th><th>成績 (缺考/△留白)</th></tr>
+              <tr><th>座號</th><th>學號</th><th>姓名</th><th>成績 (△留白)</th></tr>
             </thead>
             <tbody id="score-tbody"></tbody>
           </table>
@@ -140,7 +149,7 @@
 </div>
 
 <script>
-const GAS_URL = "[https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec](https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec)";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec";
 
 const ROSTERS = {
   "國二勤": [
@@ -204,32 +213,43 @@ function switchStep(step) {
   document.getElementById(`badge-step${step}`).classList.add('active');
 }
 
-function compressImage(file) {
+// 專門適配 iOS 的超強容錯壓縮函式
+function processImageForIOS(file) {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
+      const rawDataUrl = e.target.result;
       const img = new Image();
       img.onload = () => {
-        const maxDim = 1280; // 壓縮至 1280px，降低 payload 負載
-        let width = img.width;
-        let height = img.height;
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
+        try {
+          const maxDim = 1280;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
           }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.8);
+          resolve({ dataUrl: compressed, mimeType: 'image/jpeg' });
+        } catch (err) {
+          // 若 Canvas 轉繪受限，直接回退使用原圖字串
+          resolve({ dataUrl: rawDataUrl, mimeType: 'image/jpeg' });
         }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.8), mimeType: 'image/jpeg' });
       };
-      img.src = e.target.result;
+      img.onerror = () => {
+        resolve({ dataUrl: rawDataUrl, mimeType: 'image/jpeg' });
+      };
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   });
@@ -238,8 +258,8 @@ function compressImage(file) {
 async function handleFileSelect(e) {
   const files = Array.from(e.target.files);
   for (const file of files) {
-    const compressed = await compressImage(file);
-    uploadedFiles.push(compressed);
+    const processed = await processImageForIOS(file);
+    uploadedFiles.push(processed);
   }
   renderUploadPreviews();
 }
@@ -279,13 +299,17 @@ async function startBatchRecognition() {
   for (let i = 0; i < uploadedFiles.length; i++) {
     msg.innerText = `正在辨識第 ${i + 1} / ${uploadedFiles.length} 張成績單，請稍候...`;
     const item = uploadedFiles[i];
-    const base64Data = item.dataUrl.split(',')[1];
+    
+    // 安全萃取 base64
+    const base64Data = item.dataUrl.indexOf(',') > -1 
+      ? item.dataUrl.split(',')[1] 
+      : item.dataUrl;
 
     try {
       const resp = await fetchWithTimeout(GAS_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action: "analyze", imageBase64: base64Data, mimeType: item.mimeType })
+        body: JSON.stringify({ action: "analyze", imageBase64: base64Data, mimeType: "image/jpeg" })
       }, 45000);
 
       const resJson = await resp.json();
@@ -304,15 +328,14 @@ async function startBatchRecognition() {
       }
     } catch (err) {
       if (err.name === 'AbortError') {
-        alert(`第 ${i + 1} 張請求逾時（超過 45 秒），可能網路不穩或後端處理超時`);
+        alert(`第 ${i + 1} 張請求逾時，請檢查網路連線`);
       } else {
         alert(`第 ${i + 1} 張請求失敗: ` + err.message);
       }
     }
 
-    // 每次辨識間隔 1.2 秒避免觸發頻率限制
     if (i < uploadedFiles.length - 1) {
-      await sleep(1200);
+      await sleep(1000);
     }
   }
 
@@ -407,7 +430,7 @@ function goToStep3() {
           <span>[${idx + 1}] ${item.class_name} - ${item.subject}</span>
           <span style="color: var(--primary);">登記人數: ${validCount} 人</span>
         </div>
-        <p style="color: var(--text-sub); font-size: 14px;">
+        <p style="color: var(--text-sub); font-size: 13px;">
           範圍: ${item.scope || '無'} ｜ 日期: ${item.exam_date || '依上傳時間'}
         </p>
       </div>
