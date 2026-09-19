@@ -275,7 +275,7 @@ function renderUploadPreviews() {
 
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
-async function fetchWithTimeout(url, options, timeout = 45000) {
+async function fetchWithTimeout(url, options, timeout = 90000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
