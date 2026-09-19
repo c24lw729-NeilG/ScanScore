@@ -72,8 +72,8 @@
     .btn-outline { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
     .btn-outline:hover { background: #eff6ff; }
     .btn-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
-    .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 999; justify-content: center; align-items: center; color: #fff; font-size: 16px; flex-direction: column; gap: 14px; text-align: center; padding: 20px; }
-    .sub-msg { font-size: 13px; color: #cbd5e1; margin-top: -4px; }
+    .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 999; justify-content: center; align-items: center; color: #fff; font-size: 16px; flex-direction: column; gap: 14px; text-align: center; padding: 20px; }
+    .sub-msg { font-size: 13px; color: #fde047; margin-top: -4px; max-width: 400px; line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -85,7 +85,6 @@
     <div class="step-item" id="badge-step3"><div class="step-badge">3</div> 登記試算表</div>
   </div>
 
-  <!-- 階段 1：上傳區 -->
   <div class="view-panel active" id="view-step1">
     <div class="drop-zone" onclick="document.getElementById('file-input').click()">
       <h3>點擊此處拍照或從相簿選取成績單</h3>
@@ -109,7 +108,6 @@
     </div>
   </div>
 
-  <!-- 階段 2：檢查分頁區 -->
   <div class="view-panel" id="view-step2">
     <div class="tab-bar" id="tab-bar"></div>
     <div class="check-container">
@@ -155,7 +153,6 @@
     </div>
   </div>
 
-  <!-- 階段 3：確認上傳區 -->
   <div class="view-panel" id="view-step3">
     <h3 style="margin-bottom: 16px;">即將寫入 Google 試算表的成績清單</h3>
     <div id="summary-list"></div>
@@ -173,11 +170,11 @@
 
 <script>
 // =========================================================================
-// 請在此填入你的 Gemini API Key（直連 Google，不再經過 GAS 轉發）
+// 請在此填入你的 Gemini API Key
 // =========================================================================
-const GEMINI_API_KEY = "AIzaSyBOsGKkcQIt46xSuvMolFKUBk5BXZzasHg";
+const GEMINI_API_KEY = "在這裡填入你的_GEMINI_API_KEY";
 
-// 你的 Google 試算表 GAS 部署網址（只在最後送出成績時呼叫）
+// 你的 Google 試算表 GAS 部署網址
 const GAS_URL = "https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec";
 
 // 學生名單底冊
@@ -322,9 +319,9 @@ function renderUploadPreviews() {
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
 // =========================================================================
-// 直連 Google 官方 Gemini API（秒級回應，不再經由 GAS 代理中繼）
+// 核心：直連 Gemini API，並內建「429 自動讀取秒數接續重試」機制
 // =========================================================================
-async function callGeminiDirectly(base64Data) {
+async function callGeminiWithAutoWait(base64Data, updateStatusCallback) {
   const prompt = `你是一個嚴謹的國中成績登記表影像辨識助理。
 請仔細辨識成績單圖片，並回傳純 JSON。
 規則：
@@ -361,24 +358,49 @@ async function callGeminiDirectly(base64Data) {
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
   
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  let attempts = 0;
+  while (attempts < 4) {
+    attempts++;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
-  if (!resp.ok) {
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json.candidates && json.candidates[0].content && json.candidates[0].content.parts[0].text) {
+        let raw = json.candidates[0].content.parts[0].text.trim();
+        raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+        return JSON.parse(raw);
+      }
+      throw new Error("模型未回傳有效文字");
+    }
+
     const errText = await resp.text();
+
+    // 關鍵攔截：若是 429 配額超限，自動讀取需要等幾秒！
+    if (resp.status === 429) {
+      let waitSeconds = 35; // 預設等待
+      // 從 Google 錯誤文字解析秒數 (例如 Please retry in 39.83s)
+      const match = errText.match(/retry in ([\d\.]+)s/i);
+      if (match && match[1]) {
+        waitSeconds = Math.ceil(parseFloat(match[1])) + 2; // 多加 2 秒緩衝
+      }
+
+      // 開始即時倒數
+      for (let s = waitSeconds; s > 0; s--) {
+        updateStatusCallback(`觸發免費層冷卻，系統將在 ${s} 秒後自動為您重試...`);
+        await sleep(1000);
+      }
+      updateStatusCallback("正在重新發送辨識...");
+      continue; // 接續下一輪重試
+    }
+
     throw new Error(`API 錯誤 (${resp.status}): ${errText}`);
   }
 
-  const json = await resp.json();
-  if (json.candidates && json.candidates[0].content && json.candidates[0].content.parts[0].text) {
-    let raw = json.candidates[0].content.parts[0].text.trim();
-    raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-    return JSON.parse(raw);
-  }
-  throw new Error("模型未回傳有效文字");
+  throw new Error("多次重試後仍超出限制，建議稍候再試。");
 }
 
 async function startDirectAiRecognition() {
@@ -395,7 +417,7 @@ async function startDirectAiRecognition() {
 
   for (let i = 0; i < uploadedFiles.length; i++) {
     msg.innerText = `正在辨識第 ${i + 1} / ${uploadedFiles.length} 張成績單...`;
-    subMsg.innerText = `直連 Google 官方 AI 引擎辨識中...`;
+    subMsg.innerText = `正在解析中...`;
     
     const item = uploadedFiles[i];
     const base64Data = item.dataUrl.indexOf(',') > -1 
@@ -403,7 +425,11 @@ async function startDirectAiRecognition() {
       : item.dataUrl;
 
     try {
-      const data = await callGeminiDirectly(base64Data);
+      // 呼叫具備自動接續重試的函式
+      const data = await callGeminiWithAutoWait(base64Data, (statusText) => {
+        subMsg.innerText = statusText;
+      });
+
       processedSheets.push({
         dataUrl: item.dataUrl,
         class_name: data.class_name || "國二勤",
@@ -416,10 +442,10 @@ async function startDirectAiRecognition() {
       alert(`第 ${i + 1} 張辨識失敗: ` + err.message);
     }
 
-    // 若還有下一張，倒數安全間隔
+    // 每張照片順利完成後，基本間隔 12 秒
     if (i < uploadedFiles.length - 1) {
-      for (let s = 10; s > 0; s--) {
-        subMsg.innerText = `安全冷卻中，${s} 秒後辨識第 ${i + 2} 張...`;
+      for (let s = 12; s > 0; s--) {
+        subMsg.innerText = `安全冷卻保護中，${s} 秒後辨識第 ${i + 2} 張...`;
         await sleep(1000);
       }
     }
@@ -525,7 +551,6 @@ function goToStep3() {
   switchStep(3);
 }
 
-// 登記試算表時，只傳送乾淨的純文字成績資料（不到 2KB，0.5 秒完成寫入）
 async function submitToGoogleSheet() {
   const overlay = document.getElementById('loading-overlay');
   const msg = document.getElementById('loading-msg');
@@ -534,7 +559,6 @@ async function submitToGoogleSheet() {
   subMsg.innerText = "正在寫入各班工作表...";
   overlay.style.display = 'flex';
 
-  // 移除圖片 base64，純傳文字
   const cleanRecords = processedSheets.map(s => ({
     class_name: s.class_name,
     subject: s.subject,
