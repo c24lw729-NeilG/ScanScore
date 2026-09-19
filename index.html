@@ -89,7 +89,8 @@
     <div class="drop-zone" onclick="document.getElementById('file-input').click()">
       <h3>點擊此處選取或拍攝成績單</h3>
       <p style="color: var(--text-sub); margin-top: 8px; font-size: 13px;">可多批選取，若選錯可直接點擊照片右上角的「✕」刪除</p>
-      <input type="file" id="file-input" multiple accept="image/jpeg,image/png,image/jpg" style="display:none" onchange="handleFileSelect(event)">
+      <!-- 移除可能引發模式驗證失敗的限定值，交由 JS 處理 -->
+      <input type="file" id="file-input" multiple accept="image/*" style="display:none" onchange="handleFileSelect(event)">
     </div>
 
     <div class="preview-grid" id="preview-grid"></div>
@@ -163,11 +164,11 @@
 
 <div class="loading-overlay" id="loading-overlay">
   <div id="loading-msg">正在辨識成績單影像，請稍候...</div>
-  <div class="sub-msg" id="loading-sub">系統正在安全調節請求頻率以保護配額...</div>
+  <div class="sub-msg" id="loading-sub">系統正在安全調節請求頻率...</div>
 </div>
 
 <script>
-const GAS_URL = "[https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec](https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec)";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec";
 
 const ROSTERS = {
   "國二勤": [
@@ -231,11 +232,10 @@ function switchStep(step) {
   document.getElementById(`badge-step${step}`).classList.add('active');
 }
 
-function processImageForIOS(file) {
+function processImageSafe(file) {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
-      const rawDataUrl = e.target.result;
       const img = new Image();
       img.onload = () => {
         try {
@@ -259,13 +259,13 @@ function processImageForIOS(file) {
           const compressed = canvas.toDataURL('image/jpeg', 0.75);
           resolve({ dataUrl: compressed, mimeType: 'image/jpeg' });
         } catch (err) {
-          resolve({ dataUrl: rawDataUrl, mimeType: 'image/jpeg' });
+          resolve({ dataUrl: e.target.result, mimeType: 'image/jpeg' });
         }
       };
       img.onerror = () => {
-        resolve({ dataUrl: rawDataUrl, mimeType: 'image/jpeg' });
+        resolve({ dataUrl: e.target.result, mimeType: 'image/jpeg' });
       };
-      img.src = rawDataUrl;
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   });
@@ -276,7 +276,7 @@ async function handleFileSelect(e) {
   if (!files.length) return;
 
   for (const file of files) {
-    const processed = await processImageForIOS(file);
+    const processed = await processImageSafe(file);
     uploadedFiles.push(processed);
   }
   
@@ -311,17 +311,17 @@ function renderUploadPreviews() {
 
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
-async function fetchWithTimeout(url, options, timeout = 90000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(id);
-    return response;
-  } catch (error) {
-    clearTimeout(id);
-    throw error;
-  }
+// 超高相容性發送函式：支援 iOS 302 跨網域轉址
+async function sendGASRequest(bodyObj) {
+  const response = await fetch(GAS_URL, {
+    method: "POST",
+    redirect: "follow",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify(bodyObj)
+  });
+  return await response.json();
 }
 
 async function startBatchRecognition() {
@@ -335,7 +335,7 @@ async function startBatchRecognition() {
 
   for (let i = 0; i < uploadedFiles.length; i++) {
     msg.innerText = `正在辨識第 ${i + 1} / ${uploadedFiles.length} 張成績單...`;
-    subMsg.innerText = `AI 正在解析班級、科目與成績...`;
+    subMsg.innerText = `正在分析班級、科目與成績...`;
     
     const item = uploadedFiles[i];
     const base64Data = item.dataUrl.indexOf(',') > -1 
@@ -343,13 +343,12 @@ async function startBatchRecognition() {
       : item.dataUrl;
 
     try {
-      const resp = await fetchWithTimeout(GAS_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action: "analyze", imageBase64: base64Data, mimeType: "image/jpeg" })
-      }, 90000);
+      const resJson = await sendGASRequest({
+        action: "analyze",
+        imageBase64: base64Data,
+        mimeType: "image/jpeg"
+      });
 
-      const resJson = await resp.json();
       if (resJson.success) {
         const data = resJson.data;
         processedSheets.push({
@@ -364,14 +363,9 @@ async function startBatchRecognition() {
         alert(`第 ${i + 1} 張辨識遇到問題: ` + resJson.error);
       }
     } catch (err) {
-      if (err.name === 'AbortError') {
-        alert(`第 ${i + 1} 張請求逾時，請檢查網路`);
-      } else {
-        alert(`第 ${i + 1} 張請求失敗: ` + err.message);
-      }
+      alert(`第 ${i + 1} 張請求失敗: ` + err.message);
     }
 
-    // 關鍵節流保護：每張照片完成後，預留 2.5 秒緩衝冷卻，防止打穿免費額度水桶
     if (i < uploadedFiles.length - 1) {
       subMsg.innerText = `冷卻保護中，即將辨識下一張 (2.5 秒)...`;
       await sleep(2500);
@@ -483,16 +477,14 @@ async function submitToGoogleSheet() {
   const msg = document.getElementById('loading-msg');
   const subMsg = document.getElementById('loading-sub');
   msg.innerText = "正在寫入 Google 試算表，請稍候...";
-  subMsg.innerText = "正在對齊班級與座號...";
+  subMsg.innerText = "正在登記成績中...";
   overlay.style.display = 'flex';
 
   try {
-    const resp = await fetch(GAS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action: "save", records: processedSheets })
+    const res = await sendGASRequest({
+      action: "save",
+      records: processedSheets
     });
-    const res = await resp.json();
     overlay.style.display = 'none';
 
     if (res.success) {
@@ -507,9 +499,11 @@ async function submitToGoogleSheet() {
   }
 }
 
+// 背景預熱
 window.addEventListener('DOMContentLoaded', () => {
   fetch(GAS_URL, {
     method: "POST",
+    redirect: "follow",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({ action: "ping" })
   }).catch(() => {});
