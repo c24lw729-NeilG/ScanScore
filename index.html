@@ -20,44 +20,6 @@
     body { background-color: var(--bg); color: var(--text); padding: 16px; }
     .container { max-width: 1200px; margin: 0 auto; }
     
-    /* 伺服器狀態指示燈條 */
-    .status-banner {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      margin-bottom: 16px;
-      transition: 0.3s;
-    }
-    .status-warming {
-      background: #fef3c7;
-      color: #92400e;
-      border: 1px solid #fde68a;
-    }
-    .status-ready {
-      background: #dcfce7;
-      color: #166534;
-      border: 1px solid #bbf7d0;
-    }
-    .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      display: inline-block;
-    }
-    .dot-yellow { background: #f59e0b; animation: pulse 1.2s infinite; }
-    .dot-green { background: #22c55e; }
-
-    @keyframes pulse {
-      0% { transform: scale(0.8); opacity: 0.5; }
-      50% { transform: scale(1.2); opacity: 1; }
-      100% { transform: scale(0.8); opacity: 0.5; }
-    }
-
     .steps { display: flex; justify-content: space-around; margin-bottom: 20px; background: var(--card); padding: 14px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .step-item { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; color: var(--text-sub); }
     .step-item.active { color: var(--primary); }
@@ -111,28 +73,23 @@
     .btn-outline:hover { background: #eff6ff; }
     .btn-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
     .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 999; justify-content: center; align-items: center; color: #fff; font-size: 16px; flex-direction: column; gap: 14px; text-align: center; padding: 20px; }
-    .sub-msg { font-size: 13px; color: #94a3b8; margin-top: -6px; }
+    .sub-msg { font-size: 13px; color: #cbd5e1; margin-top: -4px; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <!-- 伺服器狀態指示燈條 -->
-  <div id="status-banner" class="status-banner status-warming">
-    <span class="dot dot-yellow" id="status-dot"></span>
-    <span id="status-text">伺服器預熱中（黃燈）... 您可以隨時選擇照片並按下開始</span>
-  </div>
-
   <div class="steps">
-    <div class="step-item active" id="badge-step1"><div class="step-badge">1</div> 上傳</div>
-    <div class="step-item" id="badge-step2"><div class="step-badge">2</div> 校對分頁</div>
+    <div class="step-item active" id="badge-step1"><div class="step-badge">1</div> 上傳照片</div>
+    <div class="step-item" id="badge-step2"><div class="step-badge">2</div> 分頁校對</div>
     <div class="step-item" id="badge-step3"><div class="step-badge">3</div> 登記試算表</div>
   </div>
 
+  <!-- 階段 1：上傳區 -->
   <div class="view-panel active" id="view-step1">
     <div class="drop-zone" onclick="document.getElementById('file-input').click()">
-      <h3>點擊此處選取或拍攝成績單</h3>
-      <p style="color: var(--text-sub); margin-top: 8px; font-size: 13px;">可多批選取，若選錯可直接點擊照片右上角的「✕」刪除</p>
+      <h3>點擊此處拍照或從相簿選取成績單</h3>
+      <p style="color: var(--text-sub); margin-top: 8px; font-size: 13px;">可多批選取，選錯可點右上角「✕」刪除</p>
       <input type="file" id="file-input" multiple accept="image/*" style="display:none" onchange="handleFileSelect(event)">
     </div>
 
@@ -145,13 +102,14 @@
         </button>
       </div>
       <div>
-        <button class="btn" id="start-btn" onclick="triggerRecognitionFlow()">
+        <button class="btn" onclick="startDirectAiRecognition()">
           開始 AI 批次辨識 ➔
         </button>
       </div>
     </div>
   </div>
 
+  <!-- 階段 2：檢查分頁區 -->
   <div class="view-panel" id="view-step2">
     <div class="tab-bar" id="tab-bar"></div>
     <div class="check-container">
@@ -197,6 +155,7 @@
     </div>
   </div>
 
+  <!-- 階段 3：確認上傳區 -->
   <div class="view-panel" id="view-step3">
     <h3 style="margin-bottom: 16px;">即將寫入 Google 試算表的成績清單</h3>
     <div id="summary-list"></div>
@@ -209,12 +168,19 @@
 
 <div class="loading-overlay" id="loading-overlay">
   <div id="loading-msg">正在辨識成績單影像，請稍候...</div>
-  <div class="sub-msg" id="loading-sub">系統正在安全調節請求頻率...</div>
+  <div class="sub-msg" id="loading-sub">直連 Google Gemini AI 引擎中...</div>
 </div>
 
 <script>
+// =========================================================================
+// 請在此填入你的 Gemini API Key（直連 Google，不再經過 GAS 轉發）
+// =========================================================================
+const GEMINI_API_KEY = "AIzaSyBOsGKkcQIt46xSuvMolFKUBk5BXZzasHg";
+
+// 你的 Google 試算表 GAS 部署網址（只在最後送出成績時呼叫）
 const GAS_URL = "https://script.google.com/macros/s/AKfycbzKZq0y9WCJ0dalNxqxRgizODySLsAPieguCWtCktAfSnlmZC-QrVwusbi6tADUXwhl/exec";
 
+// 學生名單底冊
 const ROSTERS = {
   "國二勤": [
     {no:1,id:"455232",name:"王子維"},{no:2,id:"455233",name:"王承皓"},{no:3,id:"455234",name:"李承駿"},
@@ -270,9 +236,6 @@ let uploadedFiles = [];
 let processedSheets = [];
 let activeTabIndex = 0;
 
-let isServerReady = false;
-let userClickedStart = false;
-
 function switchStep(step) {
   document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.step-item').forEach(b => b.classList.remove('active'));
@@ -304,8 +267,7 @@ function processImageSafe(file) {
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.75);
-          resolve({ dataUrl: compressed, mimeType: 'image/jpeg' });
+          resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.8), mimeType: 'image/jpeg' });
         } catch (err) {
           resolve({ dataUrl: e.target.result, mimeType: 'image/jpeg' });
         }
@@ -359,36 +321,72 @@ function renderUploadPreviews() {
 
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
-async function sendGASRequest(bodyObj) {
-  const response = await fetch(GAS_URL, {
+// =========================================================================
+// 直連 Google 官方 Gemini API（秒級回應，不再經由 GAS 代理中繼）
+// =========================================================================
+async function callGeminiDirectly(base64Data) {
+  const prompt = `你是一個嚴謹的國中成績登記表影像辨識助理。
+請仔細辨識成績單圖片，並回傳純 JSON。
+規則：
+1. class_name：從「國二勤」、「國三孝」、「國三信」三者中選擇最符合的一個。
+2. subject：必須辨識出科目（如：數學、國文、英語、理化、社會等）。
+3. scope：測驗範圍（若無則填寫 ""）。
+4. exam_date：測驗日期（若無則填寫 ""）。
+5. scores：陣列，每個元素包含 seat_no (整數座號) 與 score (分數)。
+   - 若學生缺考、空白，或是登記為三角形 △，請將 score 設為 ""。
+
+範例格式：
+{
+  "class_name": "國二勤",
+  "subject": "數學",
+  "scope": "第3章",
+  "exam_date": "",
+  "scores": [
+    {"seat_no": 1, "score": 90},
+    {"seat_no": 2, "score": ""}
+  ]
+}`;
+
+  const payload = {
+    contents: [{
+      parts: [
+        { text: prompt },
+        { inline_data: { mime_type: "image/jpeg", data: base64Data } }
+      ]
+    }],
+    generationConfig: {
+      response_mime_type: "application/json"
+    }
+  };
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+  
+  const resp = await fetch(url, {
     method: "POST",
-    redirect: "follow",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify(bodyObj)
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
   });
-  return await response.json();
-}
 
-function triggerRecognitionFlow() {
-  if (uploadedFiles.length === 0) return alert("請先選取或拍攝至少一張成績單圖片");
-
-  if (!isServerReady) {
-    userClickedStart = true;
-    const overlay = document.getElementById('loading-overlay');
-    const msg = document.getElementById('loading-msg');
-    const subMsg = document.getElementById('loading-sub');
-    msg.innerText = "伺服器正在喚醒預熱中...";
-    subMsg.innerText = "請稍候片刻，一旦綠燈連線就緒，系統將自動立即為您辨識！";
-    overlay.style.display = 'flex';
-    return;
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`API 錯誤 (${resp.status}): ${errText}`);
   }
 
-  executeBatchRecognition();
+  const json = await resp.json();
+  if (json.candidates && json.candidates[0].content && json.candidates[0].content.parts[0].text) {
+    let raw = json.candidates[0].content.parts[0].text.trim();
+    raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+    return JSON.parse(raw);
+  }
+  throw new Error("模型未回傳有效文字");
 }
 
-async function executeBatchRecognition() {
+async function startDirectAiRecognition() {
+  if (GEMINI_API_KEY.includes("在這裡填入")) {
+    return alert("請先在 index.html 內填寫您的 GEMINI_API_KEY！");
+  }
+  if (uploadedFiles.length === 0) return alert("請先選取或拍攝至少一張成績單圖片");
+
   const overlay = document.getElementById('loading-overlay');
   const msg = document.getElementById('loading-msg');
   const subMsg = document.getElementById('loading-sub');
@@ -397,7 +395,7 @@ async function executeBatchRecognition() {
 
   for (let i = 0; i < uploadedFiles.length; i++) {
     msg.innerText = `正在辨識第 ${i + 1} / ${uploadedFiles.length} 張成績單...`;
-    subMsg.innerText = `正在分析班級、科目與成績...`;
+    subMsg.innerText = `直連 Google 官方 AI 引擎辨識中...`;
     
     const item = uploadedFiles[i];
     const base64Data = item.dataUrl.indexOf(',') > -1 
@@ -405,33 +403,23 @@ async function executeBatchRecognition() {
       : item.dataUrl;
 
     try {
-      const resJson = await sendGASRequest({
-        action: "analyze",
-        imageBase64: base64Data,
-        mimeType: "image/jpeg"
+      const data = await callGeminiDirectly(base64Data);
+      processedSheets.push({
+        dataUrl: item.dataUrl,
+        class_name: data.class_name || "國二勤",
+        subject: data.subject || "數學",
+        scope: data.scope || "",
+        exam_date: data.exam_date || "",
+        scores: data.scores || []
       });
-
-      if (resJson.success) {
-        const data = resJson.data;
-        processedSheets.push({
-          dataUrl: item.dataUrl,
-          class_name: data.class_name || "國二勤",
-          subject: data.subject || "數學",
-          scope: data.scope || "",
-          exam_date: data.exam_date || "",
-          scores: data.scores || []
-        });
-      } else {
-        alert(`第 ${i + 1} 張辨識遇到問題: ` + resJson.error);
-      }
     } catch (err) {
-      alert(`第 ${i + 1} 張請求失敗: ` + err.message);
+      alert(`第 ${i + 1} 張辨識失敗: ` + err.message);
     }
 
-    // 關鍵設定：每張照片分析完成後，精確倒數等待 20 秒，徹底防範 429 限流
+    // 若還有下一張，倒數安全間隔
     if (i < uploadedFiles.length - 1) {
-      for (let secondsLeft = 20; secondsLeft > 0; secondsLeft--) {
-        subMsg.innerText = `免費配額冷卻保護中，${secondsLeft} 秒後開始辨識第 ${i + 2} 張...`;
+      for (let s = 10; s > 0; s--) {
+        subMsg.innerText = `安全冷卻中，${s} 秒後辨識第 ${i + 2} 張...`;
         await sleep(1000);
       }
     }
@@ -537,19 +525,32 @@ function goToStep3() {
   switchStep(3);
 }
 
+// 登記試算表時，只傳送乾淨的純文字成績資料（不到 2KB，0.5 秒完成寫入）
 async function submitToGoogleSheet() {
   const overlay = document.getElementById('loading-overlay');
   const msg = document.getElementById('loading-msg');
   const subMsg = document.getElementById('loading-sub');
   msg.innerText = "正在寫入 Google 試算表，請稍候...";
-  subMsg.innerText = "正在登記成績中...";
+  subMsg.innerText = "正在寫入各班工作表...";
   overlay.style.display = 'flex';
 
+  // 移除圖片 base64，純傳文字
+  const cleanRecords = processedSheets.map(s => ({
+    class_name: s.class_name,
+    subject: s.subject,
+    scope: s.scope,
+    exam_date: s.exam_date,
+    scores: s.scores
+  }));
+
   try {
-    const res = await sendGASRequest({
-      action: "save",
-      records: processedSheets
+    const resp = await fetch(GAS_URL, {
+      method: "POST",
+      redirect: "follow",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "save", records: cleanRecords })
     });
+    const res = await resp.json();
     overlay.style.display = 'none';
 
     if (res.success) {
@@ -560,49 +561,9 @@ async function submitToGoogleSheet() {
     }
   } catch (err) {
     overlay.style.display = 'none';
-    alert("請求發生異常: " + err.message);
+    alert("寫入試算表失敗: " + err.message);
   }
 }
-
-// 伺服器主動預熱與燈號切換
-async function warmUpServer() {
-  const banner = document.getElementById('status-banner');
-  const dot = document.getElementById('status-dot');
-  const text = document.getElementById('status-text');
-
-  let success = false;
-  let attempts = 0;
-
-  while (!success && attempts < 6) {
-    attempts++;
-    try {
-      const res = await sendGASRequest({ action: "ping" });
-      if (res && res.success) {
-        success = true;
-        isServerReady = true;
-
-        banner.className = "status-banner status-ready";
-        dot.className = "dot dot-green";
-        text.innerText = "🟢 系統連線就緒，已完成預熱！";
-
-        if (userClickedStart) {
-          executeBatchRecognition();
-        }
-        return;
-      }
-    } catch (e) {
-      await sleep(1800);
-    }
-  }
-
-  isServerReady = true;
-  text.innerText = "⚠️ 伺服器預熱逾時，您可以直接開始辨識";
-  if (userClickedStart) {
-    executeBatchRecognition();
-  }
-}
-
-window.addEventListener('DOMContentLoaded', warmUpServer);
 </script>
 </body>
 </html>
