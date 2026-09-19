@@ -145,7 +145,6 @@
         </button>
       </div>
       <div>
-        <!-- 隨時可按，不設 disabled -->
         <button class="btn" id="start-btn" onclick="triggerRecognitionFlow()">
           開始 AI 批次辨識 ➔
         </button>
@@ -271,9 +270,8 @@ let uploadedFiles = [];
 let processedSheets = [];
 let activeTabIndex = 0;
 
-// 伺服器狀態標記
 let isServerReady = false;
-let userClickedStart = false; // 是否在黃燈時就已按下開始
+let userClickedStart = false;
 
 function switchStep(step) {
   document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
@@ -373,12 +371,10 @@ async function sendGASRequest(bodyObj) {
   return await response.json();
 }
 
-// 核心發動控制器：隨時可按，若黃燈則先排隊等待綠燈
 function triggerRecognitionFlow() {
   if (uploadedFiles.length === 0) return alert("請先選取或拍攝至少一張成績單圖片");
 
   if (!isServerReady) {
-    // 黃燈狀態下使用者點了開始
     userClickedStart = true;
     const overlay = document.getElementById('loading-overlay');
     const msg = document.getElementById('loading-msg');
@@ -389,11 +385,9 @@ function triggerRecognitionFlow() {
     return;
   }
 
-  // 綠燈狀態下點擊直接開跑
   executeBatchRecognition();
 }
 
-// 實際執行辨識流程
 async function executeBatchRecognition() {
   const overlay = document.getElementById('loading-overlay');
   const msg = document.getElementById('loading-msg');
@@ -434,9 +428,12 @@ async function executeBatchRecognition() {
       alert(`第 ${i + 1} 張請求失敗: ` + err.message);
     }
 
+    // 關鍵設定：每張照片分析完成後，精確倒數等待 20 秒，徹底防範 429 限流
     if (i < uploadedFiles.length - 1) {
-      subMsg.innerText = `冷卻保護中，即將辨識下一張 (2.5 秒)...`;
-      await sleep(2500);
+      for (let secondsLeft = 20; secondsLeft > 0; secondsLeft--) {
+        subMsg.innerText = `免費配額冷卻保護中，${secondsLeft} 秒後開始辨識第 ${i + 2} 張...`;
+        await sleep(1000);
+      }
     }
   }
 
@@ -584,12 +581,10 @@ async function warmUpServer() {
         success = true;
         isServerReady = true;
 
-        // 轉換為綠燈狀態
         banner.className = "status-banner status-ready";
         dot.className = "dot dot-green";
         text.innerText = "🟢 系統連線就緒，已完成預熱！";
 
-        // 關鍵：如果使用者剛才在黃燈時就按下了開始，綠燈一亮自動直接啟動！
         if (userClickedStart) {
           executeBatchRecognition();
         }
@@ -600,7 +595,6 @@ async function warmUpServer() {
     }
   }
 
-  // 逾時降級
   isServerReady = true;
   text.innerText = "⚠️ 伺服器預熱逾時，您可以直接開始辨識";
   if (userClickedStart) {
